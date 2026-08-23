@@ -1,5 +1,12 @@
-/** Exports the SW-1 durable command journal without claiming later synthetic-world surfaces. */
+/** Exports durable SW-1 authority and the bounded SW-2 production controller. */
 
+export type {
+  BootProductionSyntheticControllerInput,
+  ProductionSyntheticController,
+  ProductionSyntheticControllerSnapshot,
+  ProductionSyntheticRuntimeInput,
+} from "./production-controller";
+export { bootProductionSyntheticController } from "./production-controller";
 export { SqliteSyntheticCommandJournal } from "./sqlite-command-journal";
 export type {
   SyntheticCommandCheckpoint,

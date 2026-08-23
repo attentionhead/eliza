@@ -118,10 +118,13 @@ afterEach(() => {
 });
 
 describe("SqliteSyntheticCommandJournal", () => {
-  test("reports only the capabilities SW-1 actually implements", () => {
+  test("reports only capabilities implemented through SW-2", () => {
     expect(SYNTHETIC_WORLD_CAPABILITIES.available).toEqual([
       "lease-generation-fence",
       "durable-command-journal",
+      "production-runtime-boot-grant",
+      "production-runtime-controller",
+      "production-repository-readback",
     ]);
     expect(SYNTHETIC_WORLD_CAPABILITIES.unavailable).toContain(
       "cloud-command-journal-adapter",

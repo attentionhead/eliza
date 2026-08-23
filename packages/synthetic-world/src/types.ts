@@ -86,13 +86,21 @@ export interface SyntheticCommandHeartbeat {
 }
 
 export const SYNTHETIC_WORLD_CAPABILITIES = Object.freeze({
-  available: ["lease-generation-fence", "durable-command-journal"] as const,
+  available: [
+    "lease-generation-fence",
+    "durable-command-journal",
+    "production-runtime-boot-grant",
+    "production-runtime-controller",
+    "production-repository-readback",
+  ] as const,
   unavailable: [
-    "production-boot",
+    "production-repository-transaction",
     "full-manifest",
     "virtual-clock",
     "fault-injection",
     "observation-ledger",
+    "subprocess-orchestration",
     "cloud-command-journal-adapter",
+    "production-deployment-qualification",
   ] as const,
 });

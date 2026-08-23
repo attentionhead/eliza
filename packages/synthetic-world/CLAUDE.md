@@ -1,8 +1,9 @@
-# Synthetic world command authority
+# Synthetic world production controller authority
 
 This package owns the durable, generation-fenced command journal used by
-synthetic-environment control callers. It composes over the shared lease store;
-it does not own leases, domain state, an HTTP control plane, or a simulator.
+synthetic-environment control callers and the bounded production-runtime
+controller composed over it. It does not own leases, domain world state, an
+HTTP control plane, or a simulator.
 
 ## Invariants
 
@@ -14,9 +15,22 @@ it does not own leases, domain state, an HTTP control plane, or a simulator.
   `COMMITTED` mutation whose response was lost becomes `DIRTY`/`UNKNOWN`.
 - Domain mutations are synchronous and use the supplied SQLite transaction so
   their commit is atomic with the journal's `COMMITTED` checkpoint.
+- SW-2 boots through `@elizaos/agent`'s canonical `buildInitializedRuntime`
+  path from explicit public identity and storage inputs. It never imports a
+  deterministic runtime or test service override.
+- Before boot, SW-2 executes one deterministic journal grant for the namespace
+  generation. Its payload binds every explicit public boot input; replay never
+  starts a second runtime, including after teardown or a failed first boot.
+- An available controller has read its runtime identity back through the real
+  production PGlite adapter. Controller snapshots expose that repository
+  identity rather than fabricating parallel world state.
+- Production runtime repositories use PGlite/Postgres and cannot be enlisted in
+  SW-1's `bun:sqlite` transaction. Do not claim a production repository
+  mutation until a shared production transaction adapter exists; never add a
+  controller-owned domain table as a substitute.
 - Capability reporting must list unavailable surfaces explicitly. This package
-  does not claim production boot, manifests, virtual time, fault injection,
-  observation ledgers, or a Cloud adapter.
+  does not claim manifests, virtual time, fault injection, observation ledgers,
+  subprocess orchestration, a Cloud adapter, or deployment qualification.
 
 ## Verification
 
