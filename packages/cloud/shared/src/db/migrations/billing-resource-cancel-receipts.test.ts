@@ -1,4 +1,4 @@
-/** Applies migration 0309 to real PGlite and proves its receipt and intent invariants. */
+/** Applies migration 0311 to real PGlite and proves its receipt and intent invariants. */
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
