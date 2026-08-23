@@ -17,7 +17,7 @@ const MEETINGS_TEST_SUPPORT_PACKAGE = "@elizaos/plugin-meetings/test-support";
 const NON_PRODUCTION_PACKAGE_PATTERN =
   /(?:^|[/._-])(?:mock|mocks|fixture|fixtures|test|tests|test-harness)(?:$|[/._-])/iu;
 const PACKAGE_NAME_PATTERN =
-  /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u;
+  /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)?$/u;
 
 function isPlugin(value: unknown): value is Plugin {
   if (value === null || typeof value !== "object") return false;
