@@ -13,6 +13,12 @@ Single private workspace package (`@elizaos/cloud-shared`) consumed by the rest 
 Consumers use subpath exports for billing, database, service-library, and type
 surfaces; keep those boundaries explicit rather than importing internal files.
 
+The synthetic-world command repository is a Cloud-owned PostgreSQL/PGlite
+adapter for the storage-neutral journal contract. Its compare-and-set writes
+and production repository mutations must use the exact `DbTransaction` guarded
+by the synthetic environment lease store. Migrations own schema creation;
+repository initialization must not create tables at runtime.
+
 ## Layout
 
 ```
