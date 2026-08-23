@@ -2290,49 +2290,6 @@ export class ProvisioningJobService {
           : [],
       resolveReplay: async (tx, sandbox) => {
         const targetRevision = expectedLifecycleRevision ?? sandbox.lifecycle_revision;
-        if (params.authorization === "billing_request") {
-          const [userIntent] = await tx
-            .select()
-            .from(agentComputeStopIntents)
-            .where(
-              and(
-                eq(agentComputeStopIntents.organization_id, params.organizationId),
-                eq(agentComputeStopIntents.agent_id, params.agentId),
-                eq(agentComputeStopIntents.lifecycle_revision, targetRevision),
-                eq(agentComputeStopIntents.authorization, "user_request"),
-                inArray(agentComputeStopIntents.status, [
-                  "pending",
-                  "dispatching",
-                  "retry",
-                  "terminal_attention",
-                ]),
-              ),
-            )
-            .for("update")
-            .limit(1);
-          if (!userIntent) return undefined;
-          if (!userIntent.job_id) {
-            throw new Error("Agent user stop intent is not bound to a job");
-          }
-          const [userJob] = await tx
-            .select()
-            .from(jobs)
-            .where(
-              and(
-                eq(jobs.id, userIntent.job_id),
-                eq(jobs.type, JOB_TYPES.AGENT_SUSPEND),
-                eq(jobs.organization_id, params.organizationId),
-                eq(jobs.agent_id, params.agentId),
-              ),
-            )
-            .for("update")
-            .limit(1);
-          if (!userJob) {
-            throw new Error("Agent user stop intent references a missing job");
-          }
-          return userJob;
-        }
-
         const [exactIntent] = await tx
           .select()
           .from(agentComputeStopIntents)
@@ -2342,6 +2299,16 @@ export class ProvisioningJobService {
               eq(agentComputeStopIntents.agent_id, params.agentId),
               eq(agentComputeStopIntents.lifecycle_revision, targetRevision),
               eq(agentComputeStopIntents.authorization, "user_request"),
+              ...(params.authorization === "billing_request"
+                ? [
+                    inArray(agentComputeStopIntents.status, [
+                      "pending",
+                      "dispatching",
+                      "retry",
+                      "terminal_attention",
+                    ]),
+                  ]
+                : []),
             ),
           )
           .for("update")
@@ -2368,6 +2335,7 @@ export class ProvisioningJobService {
           }
           return exactJob;
         }
+        if (params.authorization === "billing_request") return undefined;
 
         // Exact durable replay deliberately precedes this gate, because
         // the accepted stop may itself have advanced the generation.

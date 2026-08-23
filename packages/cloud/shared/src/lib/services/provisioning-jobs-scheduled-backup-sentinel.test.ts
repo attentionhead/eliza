@@ -610,7 +610,7 @@ describe("enqueueAgent*Once — real lifecycle-job inserts", () => {
   });
 
   test("a terminal manual suspend keeps its job authority over a billing enqueue", async () => {
-    const { agentId, orgId, userId } = await seedAgent({
+    const { agentId, orgId, userId, lifecycleRevision } = await seedAgent({
       executionTier: "dedicated-always",
     });
     const manual = await provisioningJobService.enqueueAgentSuspendOnce({
@@ -618,6 +618,7 @@ describe("enqueueAgent*Once — real lifecycle-job inserts", () => {
       organizationId: orgId,
       userId,
       authorization: "user_request",
+      expectedLifecycleRevision: lifecycleRevision,
     });
     await dbWrite
       .update(jobs)
@@ -637,6 +638,7 @@ describe("enqueueAgent*Once — real lifecycle-job inserts", () => {
       organizationId: orgId,
       userId,
       authorization: "billing_request",
+      expectedLifecycleRevision: lifecycleRevision,
     });
 
     expect(billing.created).toBe(false);
