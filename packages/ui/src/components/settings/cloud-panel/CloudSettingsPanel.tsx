@@ -213,9 +213,10 @@ export function CloudSettingsPanel() {
     const showHub = narrowView === "hub";
     return (
       <div
+        data-chat-clearance-aware="true"
         className={cn(
           scopeClass,
-          "flex h-full flex-col bg-[var(--canvas)] pt-8",
+          "flex h-full flex-col bg-[var(--canvas)] pt-8 pb-[var(--eliza-chat-clearance,5.25rem)] pe-[var(--eliza-chat-side-clearance,0px)]",
         )}
       >
         <CloudSettingsDragStrip />
@@ -242,7 +243,13 @@ export function CloudSettingsPanel() {
 
   // Wide layout: sidebar + content side-by-side.
   return (
-    <div className={cn(scopeClass, "flex h-full bg-[var(--canvas)]")}>
+    <div
+      data-chat-clearance-aware="true"
+      className={cn(
+        scopeClass,
+        "flex h-full bg-[var(--canvas)] pb-[var(--eliza-chat-clearance,5.25rem)] pe-[var(--eliza-chat-side-clearance,0px)]",
+      )}
+    >
       <CloudSettingsDragStrip />
       <CloudSettingsSidebar activeSection={sectionId} onSelect={handleSelect} />
       <main className="flex-1 overflow-y-auto bg-[var(--canvas)] bg-dotted pt-8">
