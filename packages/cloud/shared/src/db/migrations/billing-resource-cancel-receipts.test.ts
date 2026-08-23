@@ -1,10 +1,10 @@
-/** Applies migration 0311 to real PGlite and proves its receipt and intent invariants. */
+/** Applies migration 0312 to real PGlite and proves its receipt and intent invariants. */
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 
 const migration = await Bun.file(
-  new URL("./0311_billing_resource_cancel_receipts.sql", import.meta.url),
+  new URL("./0312_billing_resource_cancel_receipts.sql", import.meta.url),
 ).text();
 const databases: PGlite[] = [];
 
@@ -62,7 +62,7 @@ afterEach(async () => {
   await Promise.all(databases.splice(0).map((db) => db.close()));
 });
 
-describe("0311 billing resource cancellation receipts", () => {
+describe("0312 billing resource cancellation receipts", () => {
   test("backfills billing authority and enforces one explicit user intent per generation", async () => {
     const db = await database();
     await db.exec(migration);
