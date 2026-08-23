@@ -6,6 +6,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchTrajectoryList, TrajectoryHttpError } from "./api-client.js";
 
+function isWellFormedUnicode(text: string): boolean {
+  for (let index = 0; index < text.length; index++) {
+    const code = text.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      if (index + 1 >= text.length) return false;
+      const next = text.charCodeAt(index + 1);
+      if (next < 0xdc00 || next > 0xdfff) return false;
+      index++;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      return false;
+    }
+  }
+  return true;
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -19,7 +34,7 @@ describe("trajectory-logger surrogate-safe error preview (#24933)", () => {
     // Verify old slice would be ill-formed: it would split astral
     const oldSlice = body.slice(0, 200);
     expect(oldSlice.charCodeAt(199)).toBe(0xd83e);
-    expect(oldSlice.isWellFormed()).toBe(false);
+    expect(isWellFormedUnicode(oldSlice)).toBe(false);
 
     vi.stubGlobal(
       "fetch",
@@ -39,7 +54,7 @@ describe("trajectory-logger surrogate-safe error preview (#24933)", () => {
       // Truncate should back off to 199 to avoid splitting astral
       expect(preview).toBe("a".repeat(199));
       expect(preview.length).toBe(199);
-      expect(preview.isWellFormed()).toBe(true);
+      expect(isWellFormedUnicode(preview)).toBe(true);
       expect(message).toContain("500 Internal Server Error:");
     }
   });
@@ -47,7 +62,7 @@ describe("trajectory-logger surrogate-safe error preview (#24933)", () => {
   it("replaces lone surrogate via toWellFormedUnicode before truncation", async () => {
     const lone = "\uD800";
     const body = lone + "x".repeat(250);
-    expect(body.isWellFormed()).toBe(false);
+    expect(isWellFormedUnicode(body)).toBe(false);
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -63,7 +78,7 @@ describe("trajectory-logger surrogate-safe error preview (#24933)", () => {
     } catch (error) {
       const message = (error as Error).message;
       const preview = message.split(": ").pop() ?? "";
-      expect(preview.isWellFormed()).toBe(true);
+      expect(isWellFormedUnicode(preview)).toBe(true);
       expect(message).not.toContain("\uD800");
       expect(message).toContain("�");
       expect(preview.length).toBeLessThanOrEqual(200);
@@ -73,7 +88,7 @@ describe("trajectory-logger surrogate-safe error preview (#24933)", () => {
         "err",
         lone + "a".repeat(199),
       );
-      expect(direct.message.isWellFormed()).toBe(true);
+      expect(isWellFormedUnicode(direct.message)).toBe(true);
       expect(direct.message).not.toContain("\uD800");
       expect(direct.message).toContain("�");
     }
