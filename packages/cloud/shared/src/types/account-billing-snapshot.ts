@@ -198,6 +198,28 @@ export interface AccountTierSnapshot {
 export type ActiveComputeResourceType = "container" | "agent_sandbox";
 export type ActiveComputeBillingInterval = "hour" | "day";
 
+export type ActiveComputeCancellationBlockerCode =
+  | "interactive_session_required"
+  | "billing_account_ineligible"
+  | "owner_or_admin_role_required";
+
+/**
+ * Server-owned mutation descriptor for one active compute resource. Clients
+ * render and submit this contract; they do not infer authorization, endpoint,
+ * operation mode, or compare-and-set state from lifecycle fields.
+ */
+export interface ActiveComputeCancellationControlSnapshot {
+  /** Product action rendered to the user; transport mode remains `stop`. */
+  displayAction: "stop" | "suspend_billing";
+  method: "POST";
+  mode: "stop";
+  endpoint: string;
+  expectedLifecycleRevision: number;
+  /** Read-time affordance only. The POST authority rechecks current state. */
+  eligible: boolean;
+  blockers: ActiveComputeCancellationBlockerCode[];
+}
+
 export interface ActiveComputeRateSegmentSnapshot {
   workloadKind: "agent" | "container";
   billingState: "running" | "backup";
@@ -219,6 +241,7 @@ export interface ActiveComputeResourceSnapshot {
   estimatedRecurringComputeCostPerDay: Observed<
     ExactBillingValue & { unit: "usd_per_day"; currency: "USD" }
   >;
+  cancellationControl: ActiveComputeCancellationControlSnapshot;
 }
 
 export interface ActiveComputeScopeSnapshot {

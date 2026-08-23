@@ -43,6 +43,7 @@ import {
   type BillingSnapshotV2View,
   useBillingSnapshotV2,
 } from "../data/billing-snapshot";
+import type { BillingCancelIntentCoordinator } from "../lib/billing-cancel-intent";
 import {
   browserCardCheckoutIntentCoordinator,
   type CardCheckoutBindResult,
@@ -51,6 +52,7 @@ import {
   type CardCheckoutIntentHandle,
 } from "../lib/card-checkout-intent";
 import { formatExactUsd } from "../lib/format-exact-usd";
+import { useBillingResourceCancellations } from "../lib/use-billing-resource-cancellations";
 import type {
   BillingUser,
   CryptoStatusResponse,
@@ -79,6 +81,7 @@ import { Button } from "../../../components/ui/button";
 interface BillingTabProps {
   user: BillingUser;
   checkoutIntentCoordinator?: CardCheckoutIntentCoordinator;
+  billingCancellationCoordinator?: BillingCancelIntentCoordinator;
 }
 
 const AMOUNT_LIMITS = {
@@ -248,11 +251,28 @@ function getInvoiceStatusPresentation(status: string): {
 export function BillingTab({
   user,
   checkoutIntentCoordinator = browserCardCheckoutIntentCoordinator,
+  billingCancellationCoordinator,
 }: BillingTabProps) {
   const t = useCloudT();
   const navigate = useNavigate();
   const billingSnapshot = useBillingSnapshotV2(user.organization_id);
   const billingSnapshotState = toSnapshotViewState(billingSnapshot);
+  const activeComputeResources =
+    billingSnapshotState.kind === "ready" &&
+    billingSnapshotState.snapshot.activeCompute.resources.status === "available"
+      ? billingSnapshotState.snapshot.activeCompute.resources.value
+      : null;
+  const refetchBillingSnapshot = billingSnapshot.refetch;
+  const handleCancellationTerminal = useCallback(async () => {
+    await refetchBillingSnapshot();
+  }, [refetchBillingSnapshot]);
+  const billingCancellations = useBillingResourceCancellations({
+    organizationId: user.organization_id,
+    initiatedByUserId: user.id,
+    resources: activeComputeResources,
+    coordinator: billingCancellationCoordinator,
+    onTerminal: handleCancellationTerminal,
+  });
   const [invoices, setInvoices] = useState<InvoiceDisplay[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
   const [invoicesError, setInvoicesError] = useState<string | null>(null);
@@ -925,6 +945,14 @@ export function BillingTab({
 
       <ActiveComputeCardView
         state={billingSnapshotState}
+        cancellationAuthorityKey={`${user.organization_id}:${user.id}`}
+        cancellationStates={billingCancellations.states}
+        onRequestCancellation={(resource) => {
+          void billingCancellations.request(resource);
+        }}
+        onCheckCancellationReceipt={(resource) => {
+          void billingCancellations.checkReceipt(resource);
+        }}
         onRetry={() => {
           void billingSnapshot.refetch();
         }}

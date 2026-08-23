@@ -38,10 +38,17 @@ export interface BillingCancelLogicalIdentity {
   action: "stop";
 }
 
+export interface BillingCancelReceiptIdentity {
+  organizationId: string;
+  resourceId: string;
+  receiptId: string;
+}
+
 async function loadBundleByCommandId(
   tx: DbTransaction,
   organizationId: string,
   commandId: string,
+  resourceId?: string,
 ): Promise<BillingCancelCommandBundle | null> {
   const [row] = await tx
     .select({
@@ -90,6 +97,7 @@ async function loadBundleByCommandId(
       and(
         eq(billingCancelCommands.id, commandId),
         eq(billingCancelCommands.organization_id, organizationId),
+        resourceId === undefined ? undefined : eq(billingCancelCommands.resource_id, resourceId),
       ),
     )
     .limit(1);
@@ -97,6 +105,23 @@ async function loadBundleByCommandId(
 }
 
 export const billingCancelCommandsRepository = {
+  /**
+   * Loads a receipt only when every tenant-owned identity component matches.
+   * Callers supply a primary-database transaction so a poll never observes a
+   * replica view older than the durable stop intent it is reprojecting.
+   */
+  async findReceipt(
+    tx: DbTransaction,
+    identity: BillingCancelReceiptIdentity,
+  ): Promise<BillingCancelCommandBundle | null> {
+    return await loadBundleByCommandId(
+      tx,
+      identity.organizationId,
+      identity.receiptId,
+      identity.resourceId,
+    );
+  },
+
   async findByKeyHash(
     tx: DbTransaction,
     organizationId: string,

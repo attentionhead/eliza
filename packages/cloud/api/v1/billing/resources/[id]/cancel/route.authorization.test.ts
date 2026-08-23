@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api/cloud-worker-errors";
 
 const requireCurrentBillingManagerSession = mock();
 const requestCancellation = mock();
+const readReceipt = mock();
 
 mock.module("@/lib/auth/workers-hono-auth", () => ({
   requireCurrentBillingManagerSession,
@@ -16,6 +17,10 @@ mock.module("@/lib/auth/workers-hono-auth", () => ({
 
 mock.module("@/lib/services/active-billing", () => ({
   activeBillingService: { requestCancellation },
+}));
+
+mock.module("@/lib/services/billing-resource-cancellations", () => ({
+  billingResourceCancellationsService: { readReceipt },
 }));
 
 mock.module("@/lib/middleware/rate-limit-hono-cloudflare", () => ({
@@ -37,6 +42,7 @@ app.route("/api/v1/billing/resources/:id/cancel", route);
 beforeEach(() => {
   requireCurrentBillingManagerSession.mockReset();
   requestCancellation.mockReset();
+  readReceipt.mockReset();
   requestCancellation.mockResolvedValue({
     disposition: "accepted",
     receipt: {
@@ -50,8 +56,23 @@ beforeEach(() => {
       billingStopped: false,
       infrastructureStatus: "queued",
       acceptedAt: "2026-08-23T00:00:00.000Z",
-      pollEndpoint: "/api/v1/jobs/00000000-0000-4000-8000-000000000003",
+      pollEndpoint:
+        "/api/v1/billing/resources/00000000-0000-4000-8000-000000000001/cancel?receiptId=00000000-0000-4000-8000-000000000002",
     },
+  });
+  readReceipt.mockResolvedValue({
+    receiptId: "00000000-0000-4000-8000-000000000002",
+    jobId: "00000000-0000-4000-8000-000000000003",
+    resourceId: "00000000-0000-4000-8000-000000000001",
+    resourceType: "container",
+    action: "stop",
+    expectedLifecycleRevision: 7,
+    status: "accepted",
+    billingStopped: false,
+    infrastructureStatus: "queued",
+    acceptedAt: "2026-08-23T00:00:00.000Z",
+    pollEndpoint:
+      "/api/v1/billing/resources/00000000-0000-4000-8000-000000000001/cancel?receiptId=00000000-0000-4000-8000-000000000002",
   });
 });
 
@@ -72,7 +93,8 @@ describe("billing resource cancellation authorization", () => {
           billingStopped: false,
           infrastructureStatus: "queued",
           acceptedAt: "2026-08-23T00:00:00.000Z",
-          pollEndpoint: "/api/v1/jobs/00000000-0000-4000-8000-000000000003",
+          pollEndpoint:
+            "/api/v1/billing/resources/00000000-0000-4000-8000-000000000001/cancel?receiptId=00000000-0000-4000-8000-000000000002",
         },
       };
     });
@@ -149,5 +171,80 @@ describe("billing resource cancellation authorization", () => {
     }
 
     expect(requestCancellation).not.toHaveBeenCalled();
+  });
+
+  test("reads a receipt only in the current organization and path resource scope", async () => {
+    requireCurrentBillingManagerSession.mockResolvedValue({
+      id: "owner-1",
+      organization_id: "org-current",
+      role: "owner",
+    });
+
+    const response = await app.request(
+      "https://api.test/api/v1/billing/resources/00000000-0000-4000-8000-000000000001/cancel?receiptId=00000000-0000-4000-8000-000000000002",
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      success: true,
+      receipt: {
+        receiptId: "00000000-0000-4000-8000-000000000002",
+        resourceId: "00000000-0000-4000-8000-000000000001",
+      },
+    });
+    expect(requireCurrentBillingManagerSession).toHaveBeenCalledTimes(1);
+    expect(readReceipt).toHaveBeenCalledWith({
+      organizationId: "org-current",
+      resourceId: "00000000-0000-4000-8000-000000000001",
+      receiptId: "00000000-0000-4000-8000-000000000002",
+    });
+  });
+
+  test("makes zero receipt reads when current authority denies", async () => {
+    for (const status of [401, 403, 503]) {
+      requireCurrentBillingManagerSession.mockRejectedValueOnce(
+        new ApiError(
+          status,
+          status === 401
+            ? "session_auth_required"
+            : status === 403
+              ? "access_denied"
+              : "service_unavailable",
+          "denied",
+        ),
+      );
+      const response = await app.request(
+        "https://api.test/api/v1/billing/resources/00000000-0000-4000-8000-000000000001/cancel?receiptId=00000000-0000-4000-8000-000000000002",
+      );
+      expect(response.status).toBe(status);
+    }
+
+    expect(readReceipt).not.toHaveBeenCalled();
+  });
+
+  test("returns the same not-found envelope for every scoped receipt miss", async () => {
+    requireCurrentBillingManagerSession.mockResolvedValue({
+      id: "owner-1",
+      organization_id: "org-current",
+      role: "owner",
+    });
+    readReceipt.mockRejectedValue(
+      new ApiError(
+        404,
+        "resource_not_found",
+        "Billing cancellation receipt not found",
+      ),
+    );
+
+    const response = await app.request(
+      "https://api.test/api/v1/billing/resources/00000000-0000-4000-8000-000000000001/cancel?receiptId=00000000-0000-4000-8000-000000000099",
+    );
+
+    expect(response.status).toBe(404);
+    expect((await response.json()) as Record<string, unknown>).toEqual({
+      success: false,
+      error: "Billing cancellation receipt not found",
+      code: "resource_not_found",
+    });
   });
 });
