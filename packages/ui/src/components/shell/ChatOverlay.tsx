@@ -542,7 +542,7 @@ function SoftButton({
         // Batch capture has no inline waveform, so its glyph breathes; realtime
         // voice keeps this control static because the composer owns the motion.
         pulse && "animate-pulse motion-reduce:animate-none",
-        // Blocked controls (e.g. voice/transcript during sign-in-first
+        // Blocked controls (e.g. voice/transcript during conductor-only
         // onboarding) read as inert: dimmed AND non-interactive to the pointer
         // (no hover color shift, no cursor) — matching the attachment "+".
         // Keyboard focus is unaffected, so the aria-disabled label still
@@ -1242,6 +1242,7 @@ export function ChatOverlay({
     responding,
     turnStatus,
     send,
+    sendFirstRunText,
     canSend,
     recording,
     analyser,
@@ -1293,7 +1294,7 @@ export function ChatOverlay({
     ) {
       return "Connecting to Eliza Cloud…";
     }
-    return "Sign in to start chatting";
+    return "Tell me what’s on your plate";
   }, [messages]);
   // Local text-model readiness (#12178 WI-4). While it `blocksSend`, the
   // composer stays usable and the in-chat model-status card carries progress +
@@ -2506,11 +2507,11 @@ export function ChatOverlay({
       const trimmed = text.trim();
       // An image-only turn is valid; only bail when there's nothing to send.
       if (!trimmed && images.length === 0) return;
-      // During onboarding the composer is sign-in-first and locked. Ignore any
-      // synthetic draft entry point that reaches submit, and keep setup choice
-      // handling inside the transcript widgets.
+      // During onboarding, free text belongs to the local conductor and must
+      // never reach the runtime. Attachments remain unavailable until setup.
       if (firstRunOpen) {
         resetMessageHistory();
+        if (trimmed && images.length === 0) sendFirstRunText?.(trimmed);
         setDraft("");
         setSlashDismissed(false);
         setPendingImages([]);
@@ -2591,6 +2592,7 @@ export function ChatOverlay({
       firstRunOpen,
       resetMessageHistory,
       send,
+      sendFirstRunText,
       setDraft,
       setPendingImages,
       viewChatBinding,
@@ -4346,12 +4348,8 @@ export function ChatOverlay({
   );
 
   const submit = React.useCallback(() => {
-    // Onboarding is sign-in-first; transcript choice widgets are the only input.
-    if (firstRunOpen) {
-      return;
-    }
     const shortcut =
-      pendingImages.length === 0
+      !firstRunOpen && pendingImages.length === 0
         ? resolveClientShortcutExecution(
             slash.commands,
             draft,
@@ -5729,7 +5727,7 @@ export function ChatOverlay({
           // mid-drag pill/maximize commit because `grabberPressRef` retains the
           // accepted pointer id until its terminal event. Using the global drag
           // flag here mounted BOTH handles during restore. Onboarding hides the
-          // grabber entirely: it is pinned, undismissable, and sign-in-first.
+          // grabber entirely: it is pinned and undismissable during setup.
           <SheetGrabber
             open={sheetOpen}
             onOpen={openFromGrabber}
@@ -6565,11 +6563,9 @@ export function ChatOverlay({
                   ref={inputRef}
                   rows={1}
                   value={draft}
-                  // Onboarding is sign-in-first: before launch the composer is
-                  // disabled. While the external browser owns sign-in it is
-                  // read-only instead, so clicking the familiar compact composer
-                  // can reopen the transcript and its recovery action.
-                  disabled={firstRunOpen && !cloudLoginWaiting}
+                  // Free text reaches the local conductor during onboarding;
+                  // only the external sign-in wait makes the field read-only.
+                  disabled={false}
                   readOnly={cloudLoginWaiting}
                   onChange={(e) => {
                     const nextDraft = e.target.value;
@@ -6625,9 +6621,8 @@ export function ChatOverlay({
                     noteInputActivity();
                     handleComposerKeyDown(event);
                   }}
-                  // The composer is LOCKED during onboarding: first-run is
-                  // sign-in-first, so the input is disabled (see `disabled` above)
-                  // until the user signs in.
+                  // Attachments and voice stay gated during onboarding, while
+                  // text can answer the conductor naturally.
                   // (This surface's strings are plain literals by design — see
                   // the imageError note above.)
                   placeholder={
@@ -6649,9 +6644,11 @@ export function ChatOverlay({
                   aria-label="message"
                   data-testid="chat-composer-textarea"
                   aria-describedby={
-                    booting && !noProviderConfigured && !firstRunOpen
-                      ? "cc-booting-hint"
-                      : undefined
+                    firstRunOpen
+                      ? "cc-first-run-hint"
+                      : booting && !noProviderConfigured
+                        ? "cc-booting-hint"
+                        : undefined
                   }
                   // Combobox semantics (role + aria-*) are applied as one spread,
                   // and only when a slash catalog is wired in — a plain message
@@ -6672,6 +6669,11 @@ export function ChatOverlay({
                 <span id="cc-booting-hint" className="sr-only">
                   {agentName} is waking up — you can type now; your message
                   sends and the reply arrives in a moment.
+                </span>
+              ) : null}
+              {firstRunOpen ? (
+                <span id="cc-first-run-hint" className="sr-only">
+                  Your answer stays in setup until your agent is ready.
                 </span>
               ) : null}
               {/* Trailing controls. */}
@@ -6741,13 +6743,19 @@ export function ChatOverlay({
                     <SoftButton
                       icon={SendHorizontal}
                       label={
-                        !canSend
-                          ? "send (agent stopped)"
-                          : responding
-                            ? "send another"
-                            : "send"
+                        firstRunOpen
+                          ? "send to setup assistant"
+                          : !canSend
+                            ? "send (agent stopped)"
+                            : responding
+                              ? "send another"
+                              : "send"
                       }
-                      disabled={firstRunOpen || !canSend}
+                      disabled={
+                        firstRunOpen
+                          ? cloudLoginWaiting || !sendFirstRunText
+                          : !canSend
+                      }
                       onPointerDown={(event) => event.preventDefault()}
                       onClick={submit}
                       testId="chat-composer-action"
